@@ -11,12 +11,17 @@
         	#reconnect-button {
         		display:none;
         	}
+        	form p {
+        		overflow:hidden;
+        		text-overflow:ellipsis;
+        	}
         </style>
     </head>
     <body>
         <div class="app">
-            <form id="login">
+            <form id="login" onsubmit="return false;">
             	<p id="login-status"></p>
+            	<p id="login-user-id"></p>
             	<p id="login-access-token"></p>
             	<p id="login-refresh-token"></p>
                 <button id="login-button">Sign In With Oauth!</button>
@@ -24,8 +29,18 @@
                 <button id="reconnect-button">Reconnect</button>
             </form>
         </div>
-        <script type="text/javascript" src="cordova.js"></script>
+        
         <script type="text/javascript" src="js/jquery-2.1.4.min.js"></script>
         <script type="text/javascript" src="js/index.js"></script>
+        <script>
+        	if (document.location.search.indexOf('emulate')==-1) {
+				document.write('<script src="cordova.js"><\/script>');
+			} else {
+				config.emulate = true;
+				uiInit();
+			}
+			
+		</script>
+        
     </body>
 </html>

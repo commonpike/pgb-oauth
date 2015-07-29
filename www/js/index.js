@@ -1,43 +1,65 @@
 var config = {
+	emulate			: false, // call with ? emulate to emulate
 	access_token	: '',
 	refresh_token 	: '',
 	user_id			: 0,
-	login_url		: 'http://speeltuin.kw.nl/~pike/pgb-oauth/login.php',
-	reconnect_url	: 'http://speeltuin.kw.nl/~pike/pgb-oauth/reconnect.json.php'
+	login_url		: 'http://speeltuin.kw.nl/~pike/pgb-oauth-web/login.php',
+	reconnect_url	: 'http://speeltuin.kw.nl/~pike/pgb-oauth-web/reconnect.json.php',
+	logout_url		: 'http://speeltuin.kw.nl/~pike/pgb-oauth-web/logout.json.php'
 }
 
 $(document).on('deviceready', function() {
+	uiInit();
+});
+
+function uiInit() {
+	uiStatus('init..');
 	$('#login-button').on('click',oaLogin);
 	$('#logout-button').on('click',oaLogout);
 	$('#reconnect-button').on('click',oaReconnect);
-	pgInit();
-});
-
-function pgInit() {
-	status('init..');
+	
 	// read stuff from localstorage
 	if (config.access_token) {
 		// you were here before. refresh.
-		status('reconnecting..');
+		uiStatus('reconnecting..');
 		reconnect();
 	} else {
-		status('first launch.');
+		uiStatus('first launch.');
 	}
 }
 
-function pgStatus(msg) {
-	$('#login-access-token').txt(config.access_token);
-	$('#login-refresh-token').txt(config.refresh_token);
-	$('#login-user-id').txt(config.user_id);
-	$('#login-status').txt(msg);
+function uiStatus(msg) {
+	$('#login-access-token').text('ACCESS:'+config.access_token);
+	$('#login-refresh-token').text('REFRESH:'+config.refresh_token);
+	$('#login-user-id').text('USERID:'+config.user_id);
+	$('#login-status').text(msg);
+}
+
+function uiLoggedIn(msg,access_token,refresh_token,user_id) {
+	config.access_token 	= access_token;
+	config.refresh_token 	= refresh_token;
+	config.user_id 			= user_id;
+	uiStatus(msg);
+	$('#login-button').hide();
+	$('#logout-button,#reconnect-button').show();
+}
+
+function uiLoggedOut(msg) {
+	uiStatus(msg);
+	$('#login-button').show();
+	$('#logout-button,#reconnect-button').hide();
 }
 
 
-function oaLogin() {
+function oaLogin() {	
+
+	uiStatus('Logging in ..');
 
 	//Open the OAuth consent page in the InAppBrowser
 	var wdw = window.open(config.login_url, '_blank', 'location=no,toolbar=no');
 
+	// use a timer to check network issues
+	
 	$(wdw).on('loadstart', function(e) {
 		var url = e.originalEvent.url;
 		var success = /\/success.php/.exec(url);
@@ -49,49 +71,51 @@ function oaLogin() {
 		}
 		
 		if (success) {
-			config.access_token = /access_token=([^&]+)/.exec(url)[0];
-			config.refresh_token = /refresh_token=([^&]+)/.exec(url)[0];
-			config.user_id = /user_id=([^&]+)/.exec(url)[0];
-			status('Logged in.');
-			$('#login-button').hide();
-			$('#logout-button,#reconnect-button').show();
-		
+			var access_token = /access_token=([^&]+)/.exec(url)[1];
+			var refresh_token = /refresh_token=([^&]+)/.exec(url)[1];
+			var user_id = /user_id=([^&]+)/.exec(url)[1];
+			uiLoggedIn('Logged in.',access_token,refresh_token,user_id);
 		}
 		if (error) {
 			var message = /message=([&]+)/.exec(url);
-			status('Error logging in: '+messages.join('<br>');
+			uiLoggedOut('Error logging in: '+messages.join('<br>'));
 		}		
-	}
+	});
 } 
 
 
 function oaReconnect() {
+	uiStatus('Reconnecting ..');
 	$.post(config.reconnect_url, {
 		access_token	: config.access_token,
 		refresh_token	: config.refresh_token
 	}).done(function(data) {
 		if (!data.error) {
-			config.access_token = data.result.access_token;
-			config.refresh_token = data.result.refresh_token;
-			status('Reconnected');
+			var access_token = data.result.access_token;
+			var refresh_token = data.result.refresh_token;
+			var user_id = data.result.user_id;
+			uiLoggedIn('Reconnected.',access_token,refresh_token,user_id);
 		} else {
-			status('Reconnect failed!');
-			$('#login-button').show();
-			$('#logout-button,#reconnect-button').hide();
+			uiLoggedOut('Reconnect failed:',data.messages);
 		}
 	}).fail(function(response) {
-		status(response.responseJSON.error);
+		uiStatus(response.responseJSON.error);
 	});
 }
 
 function oaLogout() {
-	config.access_token='';
-	config.refresh_token='';
-	config.user_id=0;
-	// you probably want to do things remote, too
-	status('Logged out');
-	$('#login-button').show();
-	$('#logout-button,#reconnect-button').hide();
+	uiStatus('Reconnecting ..');
+	$.post(config.logout_url,{}).done(function(data) {
+		if (!data.error) {
+			config.access_token='';
+			config.refresh_token='';
+			config.user_id=0;
+			uiLoggedOut('Logged out');
+		} else {
+			uiStatus('Logout failed:',data.messages);
+		}
+	}).fail(function(response) {
+		uiStatus(response.responseJSON.error);
+	});
 }
-
 
