@@ -11,10 +11,29 @@
         	#reconnect-button {
         		display:none;
         	}
-        	form p {
+        	form {
+        		text-align:left;
+        	}
+        	
+        	#login-access-token, #login-refresh-token {
         		overflow:hidden;
         		text-overflow:ellipsis;
+        		white-space:nowrap;
         	}
+        	.app {
+        		top:130px;
+        	}
+        	.error {
+        		color:red;
+        	}
+        	@media screen and (min-aspect-ratio: 1/1) and (min-width: 400px) {
+				.app {
+					padding-top:0;
+					padding-left:200px;
+					min-height: 100px;
+				}
+			}
+
         </style>
     </head>
     <body>
@@ -33,7 +52,8 @@
         <script type="text/javascript" src="js/jquery-2.1.4.min.js"></script>
         <script type="text/javascript" src="js/index.js"></script>
         <script>
-        	if (document.location.search.indexOf('emulate')==-1) {
+        	
+        	if (document.location.protocol.indexOf('http')==-1) {
 				document.write('<script src="cordova.js"><\/script>');
 			} else {
 				config.emulate = true;
