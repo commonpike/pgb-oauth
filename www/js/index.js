@@ -28,10 +28,10 @@ function uiInit() {
 	
 	if (config.user_id) {
 		// you were here before. refresh.
-		uiStatus('previously connected.');
+		uiStatus('previously connected as '+config.user_id);
 		oaReconnect();
 	} else {
-		uiStatus('first launch.');
+		uiStatus('not logged in.');
 	}
 }
 
@@ -44,7 +44,7 @@ function uiResume() {
 function uiLoad() {
 	config.access_token 	= localStorage.getItem('access_token');
 	config.refresh_token 	= localStorage.getItem('refresh_token');
-	config.user_id 			= localStorage.getItem('user_id');
+	config.user_id 			= localStorage.getItem('user_id')*1;
 }
 
 function uiSave() {
@@ -96,7 +96,7 @@ function oaPing() {
         async: false,
         timeout	: 5000, // in milliseconds
     });
-    console.log(pong);
+    //console.log(pong);
     if (pong.responseText=="pong") return true;
     else uiError('Ping failed - offline?');
 }
@@ -151,18 +151,26 @@ function oaReconnect() {
 				access_token	: config.access_token,
 				refresh_token	: config.refresh_token
 			}
-		}).done(function(data) {
-			var response = jQuery.parseJSON(data); // why ?
-			if (response && !response.error) {
+		}).done(function(response) {
+			//var response = jQuery.parseJSON(data); // why ?
+			if (!response.error) {
 				var access_token = response.result.access_token;
 				var refresh_token = response.result.refresh_token;
 				var user_id = response.result.user_id;
 				uiLoggedIn('Reconnected.',access_token,refresh_token,user_id);
 			} else {
-				uiLoggedOut('Reconnect failed: '+data, true);
+				if (response.error) {
+					uiLoggedOut(response.messages.join(';'),true);
+				} else {
+					uiLoggedOut(response.responseText,true);
+				}
 			}
 		}).fail(function(response) {
-			uiError(response.responseJSON.error);
+			if (response.responseJSON && response.responseJSON.error) {
+				uiError(response.responseJSON.messages.join(';'));
+			} else {
+				uiError(response.responseText);
+			}
 		});
 	}
 }
@@ -179,9 +187,9 @@ function oaLogout() {
 				access_token	: config.access_token,
 				refresh_token	: config.refresh_token
 			}
-		}).done(function(data) {
-			var response = jQuery.parseJSON(data); // why ?
-			if (response && !response.error) {
+		}).done(function(response) {
+			//var response = jQuery.parseJSON(data); // why ?
+			if (!response.error) {
 				config.access_token='';
 				config.refresh_token='';
 				config.user_id=0;
@@ -190,7 +198,11 @@ function oaLogout() {
 				uiStatus('Logout failed: '+data,true);
 			}
 		}).fail(function(response) {
-			uiError(response.responseJSON.error);
+			if (response.error) {
+				uiError(response.messages.join(';'));
+			} else {
+				uiError(response.responseText);
+			}
 		});
 	}
 }
