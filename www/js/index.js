@@ -3,6 +3,7 @@ var config = {
 	access_token	: '',
 	refresh_token 	: '',
 	user_id			: 0,
+	ping_url		: 'http://speeltuin.kw.nl/~pike/pgb-oauth-web/ping.php',
 	login_url		: 'http://speeltuin.kw.nl/~pike/pgb-oauth-web/login.php',
 	reconnect_url	: 'http://speeltuin.kw.nl/~pike/pgb-oauth-web/reconnect.json.php',
 	logout_url		: 'http://speeltuin.kw.nl/~pike/pgb-oauth-web/logout.json.php'
@@ -14,19 +15,29 @@ $(document).on('deviceready', function() {
 
 function uiInit() {
 	uiStatus('init..');
+	
+	$(document).on("pause", 	function() { uiPause(); });
+	$(document).on("resume", 	function() { uiResume(); });
+		
 	$('#login-button').on('click',oaLogin);
 	$('#logout-button').on('click',oaLogout);
 	$('#reconnect-button').on('click',oaReconnect);
 	
+	// read stuff from localstorage
 	uiLoad();
 	
-	// read stuff from localstorage
 	if (config.user_id) {
 		// you were here before. refresh.
 		uiStatus('previously connected.');
 		oaReconnect();
 	} else {
 		uiStatus('first launch.');
+	}
+}
+
+function uiResume() {
+	if (config.user_id) {
+		oaReconnect();
 	}
 }
 
@@ -50,9 +61,12 @@ function uiStatus(msg,error) {
 	$('#login-status').text(msg);
 	$('#login-status').toggleClass('error',error?true:false);
 }
+
 function uiError(msg) {
 	uiStatus(msg,true);
 }
+
+
 
 function uiLoggedIn(msg,access_token,refresh_token,user_id) {
 	config.access_token 	= access_token;
@@ -74,77 +88,110 @@ function uiLoggedOut(msg,error) {
 	$('#logout-button,#reconnect-button').hide();
 }
 
+function oaPing() {
+	uiStatus('Pinging ..');
+	var pong = $.ajax({
+        type: "GET",
+        url: config.ping_url,
+        async: false,
+        timeout	: 5000, // in milliseconds
+    });
+    console.log(pong);
+    if (pong.responseText=="pong") return true;
+    else uiError('Ping failed - offline?');
+}
 
 function oaLogin() {	
 
-	uiStatus('Logging in ..');
-
-	//Open the OAuth consent page in the InAppBrowser
-	var wdw = window.open(config.login_url, '_blank', 'location=no,toolbar=no');
-
-	// use a timer to check network issues
-	// this event is only triggered by the inAppBrowser
-	$(wdw).on('loadstart', function(e) {
-		var url = e.originalEvent.url;
-		var success = /\/success.php/.exec(url);
-		var error = /\/error.php/.exec(url);
+	if (oaPing()) {
+		uiStatus('Logging in ..');
+	
+		//Open the OAuth consent page in the InAppBrowser
+		var wdw = window.open(config.login_url, '_blank', 'location=no,toolbar=no');
+	
+		// check your network before you start this ..
+		// ....
 		
-		if (success || error) {
-			//Always close the browser when match is found
-			wdw.close();
-		}
 		
-		if (success) {
-			var access_token = /access_token=([^&]+)/.exec(url)[1];
-			var refresh_token = /refresh_token=([^&]+)/.exec(url)[1];
-			var user_id = /user_id=([^&]+)/.exec(url)[1];
-			uiLoggedIn('Logged in.',access_token,refresh_token,user_id);
-		}
-		if (error) {
-			var message = /message=([&]+)/.exec(url);
-			uiLoggedOut('Error logging in: '+messages.join('<br>'),true);
-		}		
-	});
+		// this event is only triggered by the inAppBrowser
+		$(wdw).on('loadstart', function(e) {
+			var url = e.originalEvent.url;
+			var success = /\/success.php/.exec(url);
+			var error = /\/error.php/.exec(url);
+			
+			if (success || error) {
+				//Always close the browser when match is found
+				wdw.close();
+			}
+			
+			if (success) {
+				var access_token = /access_token=([^&]+)/.exec(url)[1];
+				var refresh_token = /refresh_token=([^&]+)/.exec(url)[1];
+				var user_id = /user_id=([^&]+)/.exec(url)[1];
+				uiLoggedIn('Logged in.',access_token,refresh_token,user_id);
+			}
+			if (error) {
+				var message = /message=([&]+)/.exec(url);
+				uiLoggedOut('Error logging in: '+messages.join('<br>'),true);
+			}		
+		});
+	}
 } 
 
 
 function oaReconnect() {
-	uiStatus('Reconnecting ..');
-	$.post(config.reconnect_url, {
-		access_token	: config.access_token,
-		refresh_token	: config.refresh_token
-	}).done(function(data) {
-		var response = jQuery.parseJSON(data);
-		if (response && !response.error) {
-			var access_token = response.result.access_token;
-			var refresh_token = response.result.refresh_token;
-			var user_id = response.result.user_id;
-			uiLoggedIn('Reconnected.',access_token,refresh_token,user_id);
-		} else {
-			uiLoggedOut('Reconnect failed: '+data, true);
-		}
-	}).fail(function(response) {
-		uiError(response.responseJSON.error);
-	});
+	if (oaPing()) {
+		uiStatus('Reconnecting ..');
+		$.ajax({
+			type	: "post",
+			url		:	config.reconnect_url, 
+			dataType: "json",
+			timeout	: 5000, // in milliseconds
+			data	: {
+				access_token	: config.access_token,
+				refresh_token	: config.refresh_token
+			}
+		}).done(function(data) {
+			var response = jQuery.parseJSON(data); // why ?
+			if (response && !response.error) {
+				var access_token = response.result.access_token;
+				var refresh_token = response.result.refresh_token;
+				var user_id = response.result.user_id;
+				uiLoggedIn('Reconnected.',access_token,refresh_token,user_id);
+			} else {
+				uiLoggedOut('Reconnect failed: '+data, true);
+			}
+		}).fail(function(response) {
+			uiError(response.responseJSON.error);
+		});
+	}
 }
 
 function oaLogout() {
-	uiStatus('Logging out ..');
-	$.post(config.logout_url,{
-		access_token	: config.access_token,
-		refresh_token	: config.refresh_token
-	}).done(function(data) {
-		var response = jQuery.parseJSON(data);
-		if (response && !response.error) {
-			config.access_token='';
-			config.refresh_token='';
-			config.user_id=0;
-			uiLoggedOut('Logged out');
-		} else {
-			uiStatus('Logout failed: '+data,true);
-		}
-	}).fail(function(response) {
-		uiError(response.responseJSON.error);
-	});
+	if (oaPing()) {
+		uiStatus('Logging out ..');
+		$.ajax({
+			type	: "post",
+			url		: config.logout_url, 
+			dataType: "json",
+			timeout	: 5000, // in milliseconds
+			data	: {
+				access_token	: config.access_token,
+				refresh_token	: config.refresh_token
+			}
+		}).done(function(data) {
+			var response = jQuery.parseJSON(data); // why ?
+			if (response && !response.error) {
+				config.access_token='';
+				config.refresh_token='';
+				config.user_id=0;
+				uiLoggedOut('Logged out');
+			} else {
+				uiStatus('Logout failed: '+data,true);
+			}
+		}).fail(function(response) {
+			uiError(response.responseJSON.error);
+		});
+	}
 }
 
