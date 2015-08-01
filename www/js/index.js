@@ -35,6 +35,10 @@ function uiInit() {
 	}
 }
 
+function uiPause() {
+	// ni
+}
+
 function uiResume() {
 	if (config.user_id) {
 		oaReconnect();
